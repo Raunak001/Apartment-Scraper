@@ -4,8 +4,11 @@ search:
     - lincoln_park
     - wicker_park
     - logan_square
-    - bucktown
-    - roscoe_village
+    - old_town
+    - west_loop
+    - west_town
+    - fulton_market
+    - river_north
 
 pricing:
   max_price: 2200
@@ -14,19 +17,19 @@ pricing:
 unit:
   min_bedrooms: 1
   max_bedrooms: 2
-  min_sqft: null
+  min_sqft: 500
 
 amenities:
-  required: []
-  preferred: []
+  required: [in_unit_laundry]
+  preferred: [dishwasher]
   dealbreakers: []
 
 fit:
   vibe: >
-    Vibrant but not loud. Prefer vintage buildings with character over
-    new glass construction. Near Blue or Brown line, max 10 min walk.
-  transit: [blue_line, brown_line]
-  building_type: vintage
+    Within 8 minute walk of public transportation that has easy access to Union Station.
+    Prefer modern buildings with character over vintage constructions.
+  transit: []
+  building_type: modern
 
 scoring:
   weights:

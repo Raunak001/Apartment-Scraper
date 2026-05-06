@@ -20,3 +20,6 @@ build/
 # Google OAuth (future)
 credentials.json
 token.json
+
+# Claude
+CLAUDE.md

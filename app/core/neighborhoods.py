@@ -12,18 +12,30 @@ ZIP_TO_NEIGHBORHOOD: dict[str, str] = {
     "60614": "lincoln_park",
     "60657": "lincoln_park",  # also Lakeview — LP is dominant for southern 60657
 
-    # Wicker Park / Ukrainian Village
+    # Wicker Park (within the broader West Town community area)
     "60622": "wicker_park",
 
     # Logan Square
     "60647": "logan_square",
 
-    # Bucktown (shares 60647 with Logan Square — Bucktown is east of the Kennedy)
-    # Listings in 60647 default to logan_square; Bucktown detection may need
-    # address-level refinement in a future phase.
+    # Old Town
+    "60610": "old_town",
 
-    # Roscoe Village
-    "60618": "roscoe_village",
+    # West Loop (includes Fulton Market district — same zip, no clean split)
+    "60607": "west_loop",
+    "60661": "west_loop",
+
+    # West Town (60612 covers the western portion; 60622 overlaps with Wicker Park
+    # and defaults to wicker_park since it's the more specific neighborhood name)
+    "60612": "west_town",
+
+    # Fulton Market shares 60607 with West Loop. Distinguishing them would require
+    # address-level parsing (e.g., streets between Randolph and Lake, Halsted to Ashland).
+    # For now, 60607 → west_loop. Fulton Market detection is a future refinement.
+
+    # River North
+    "60654": "river_north",
+    "60611": "river_north",  # also Streeterville — River North is dominant for western 60611
 }
 
 # Reverse lookup: which zip codes are relevant per neighborhood
