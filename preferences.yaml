@@ -1,0 +1,39 @@
+search:
+  target_city: chicago
+  neighborhoods:
+    - lincoln_park
+    - wicker_park
+    - logan_square
+    - bucktown
+    - roscoe_village
+
+pricing:
+  max_price: 2200
+  alert_threshold: 0.15
+
+unit:
+  min_bedrooms: 1
+  max_bedrooms: 2
+  min_sqft: null
+
+amenities:
+  required: []
+  preferred: []
+  dealbreakers: []
+
+fit:
+  vibe: >
+    Vibrant but not loud. Prefer vintage buildings with character over
+    new glass construction. Near Blue or Brown line, max 10 min walk.
+  transit: [blue_line, brown_line]
+  building_type: vintage
+
+scoring:
+  weights:
+    deal: 0.6
+    preference: 0.4
+  min_composite_score: 0.55
+
+alerts:
+  cooldown_hours: 24
+  max_per_day: 10
