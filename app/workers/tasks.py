@@ -76,7 +76,7 @@ def scrape_craigslist(self) -> dict:
                     )
 
         summary = {
-            "rss_total": len(raw_listings) + len(known_ids),
+            "search_total": len(raw_listings) + len(known_ids),
             "already_known": len(known_ids),
             "scraped": len(raw_listings),
             "inserted": inserted,

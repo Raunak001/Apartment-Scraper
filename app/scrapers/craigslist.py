@@ -1,9 +1,11 @@
 """Craigslist Chicago apartment scraper.
 
 Strategy:
-  1. Fetch the RSS feed to discover new listing URLs.
+  1. Fetch the HTML search page to discover listing URLs.
+     (RSS feed is blocked by Craigslist — returns 403.)
   2. For each URL not already in the DB, scrape the detail page for full data.
-  3. Extract zip code from the map/address section, map to neighborhood.
+  3. Extract zip code from the detail page, map to neighborhood.
+     Fall back to the search result's location text if no zip is found.
   4. Return a list of normalized listing dicts ready for DB insertion.
 """
 
@@ -12,22 +14,66 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-import feedparser
 import httpx
 from bs4 import BeautifulSoup
 
-from app.core.config import SCRAPE_DELAY_SECONDS, USER_AGENT
+from app.core.config import SCRAPE_DELAY_SECONDS, USER_AGENT, load_preferences
 from app.core.logging import get_logger
-from app.core.neighborhoods import zip_to_neighborhood
+from app.core.neighborhoods import (
+    zip_to_neighborhood,
+    log_unmapped_zip_summary,
+    reset_unmapped_zips,
+)
 
 logger = get_logger(__name__)
 
-CRAIGSLIST_RSS_URL = "https://chicago.craigslist.org/search/chc/apa?format=rss"
+
+def _build_search_url() -> str:
+    """Build a filtered Craigslist search URL from preferences.yaml.
+
+    Uses geo-fenced search centered on Chicago's core neighborhoods
+    with price/bedroom filters. The search params are intentionally
+    wider than alert thresholds so we collect enough data for the
+    price distribution model.
+    """
+    prefs = load_preferences()
+
+    max_price = prefs.get("pricing", {}).get("max_price", 2200)
+    min_bedrooms = 0  # always include studios
+    max_bedrooms = prefs.get("unit", {}).get("max_bedrooms", 2)
+
+    # Pad max_price by ~20% for the search — we want listings above budget
+    # to feed the price model, but not absurdly expensive ones.
+    search_max_price = int(max_price * 1.2)
+
+    params = {
+        "lat": "41.895",
+        "lon": "-87.6441",
+        "search_distance": "1.6",
+        "min_bedrooms": str(min_bedrooms),
+        "max_bedrooms": str(max_bedrooms),
+        "max_price": str(search_max_price),
+    }
+    query = "&".join(f"{k}={v}" for k, v in params.items())
+    return f"https://chicago.craigslist.org/search/chicago-il/apa?{query}"
 
 HEADERS = {
     "User-Agent": USER_AGENT,
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.5",
+}
+
+# Craigslist location text → preferences.yaml neighborhood name.
+# Used as a fallback when zip code extraction fails.
+LOCATION_TO_NEIGHBORHOOD: dict[str, str] = {
+    "lincoln park": "lincoln_park",
+    "wicker park": "wicker_park",
+    "logan square": "logan_square",
+    "old town": "old_town",
+    "west loop": "west_loop",
+    "west town": "west_town",
+    "fulton market": "fulton_market",
+    "river north": "river_north",
 }
 
 
@@ -53,38 +99,46 @@ class RawListing:
     extras: dict = field(default_factory=dict)
 
 
-def fetch_rss_listings() -> list[dict]:
-    """Fetch the Craigslist RSS feed and return a list of {external_id, url, title, price}.
+def fetch_search_listings() -> list[dict]:
+    """Fetch the Craigslist HTML search page and extract listing summaries.
 
-    The RSS feed gives us enough to know which listings exist and their URLs.
+    Each entry contains: external_id, url, title, price, location.
     Full details come from scraping each detail page.
     """
-    logger.info("fetching_rss_feed", url=CRAIGSLIST_RSS_URL)
+    search_url = _build_search_url()
+    logger.info("fetching_search_page", url=search_url)
 
-    feed = feedparser.parse(CRAIGSLIST_RSS_URL)
+    with httpx.Client(headers=HEADERS, timeout=20.0, follow_redirects=True) as client:
+        response = client.get(search_url)
+        response.raise_for_status()
 
-    if feed.bozo:
-        logger.warning("rss_parse_warning", error=str(feed.bozo_exception))
+    soup = BeautifulSoup(response.text, "lxml")
+    results = soup.select("li.cl-static-search-result")
 
     entries = []
-    for entry in feed.entries:
-        url = entry.get("link", "")
+    for result in results:
+        link_el = result.select_one("a")
+        if not link_el or not link_el.get("href"):
+            continue
+
+        url = link_el["href"]
         external_id = _extract_external_id(url)
         if not external_id:
             continue
 
-        # RSS title often looks like: "$1,200 / 2br - 800ft² - Nice apartment in Lincoln Park"
-        title = entry.get("title", "")
-        price = _extract_price_from_title(title)
+        title = result.select_one(".title")
+        price_el = result.select_one(".price")
+        location_el = result.select_one(".location")
 
         entries.append({
             "external_id": external_id,
             "url": url,
-            "title": title,
-            "price": price,
+            "title": title.get_text(strip=True) if title else None,
+            "price": _parse_price(price_el.get_text(strip=True)) if price_el else None,
+            "location": location_el.get_text(strip=True) if location_el else None,
         })
 
-    logger.info("rss_feed_fetched", count=len(entries))
+    logger.info("search_page_fetched", count=len(entries))
     return entries
 
 
@@ -151,8 +205,24 @@ def scrape_listing_detail(url: str) -> dict:
     return data
 
 
+def _resolve_neighborhood(detail: dict, search_location: str | None) -> str | None:
+    """Determine neighborhood using zip code first, falling back to search location text."""
+    # Prefer zip-based mapping (most reliable)
+    if detail.get("neighborhood"):
+        return detail["neighborhood"]
+
+    # Fall back to the location text from the search results page
+    if search_location:
+        location_lower = search_location.lower().strip()
+        for text, neighborhood in LOCATION_TO_NEIGHBORHOOD.items():
+            if text in location_lower:
+                return neighborhood
+
+    return None
+
+
 def scrape_craigslist_listings(known_external_ids: set[str] | None = None) -> list[RawListing]:
-    """Full scrape pipeline: RSS discovery → detail scrape for new listings.
+    """Full scrape pipeline: search page discovery -> detail scrape for new listings.
 
     Args:
         known_external_ids: Set of external_ids already in the DB.
@@ -164,13 +234,16 @@ def scrape_craigslist_listings(known_external_ids: set[str] | None = None) -> li
     if known_external_ids is None:
         known_external_ids = set()
 
-    rss_entries = fetch_rss_listings()
+    # Reset unmapped zip tracking for this run
+    reset_unmapped_zips()
 
-    new_entries = [e for e in rss_entries if e["external_id"] not in known_external_ids]
+    search_entries = fetch_search_listings()
+
+    new_entries = [e for e in search_entries if e["external_id"] not in known_external_ids]
     logger.info(
         "new_listings_found",
-        total_rss=len(rss_entries),
-        already_known=len(rss_entries) - len(new_entries),
+        total_search=len(search_entries),
+        already_known=len(search_entries) - len(new_entries),
         new=len(new_entries),
     )
 
@@ -179,6 +252,8 @@ def scrape_craigslist_listings(known_external_ids: set[str] | None = None) -> li
         try:
             detail = scrape_listing_detail(entry["url"])
 
+            neighborhood = _resolve_neighborhood(detail, entry.get("location"))
+
             listing = RawListing(
                 external_id=entry["external_id"],
                 url=entry["url"],
@@ -186,7 +261,7 @@ def scrape_craigslist_listings(known_external_ids: set[str] | None = None) -> li
                 price=detail.get("price") or entry.get("price"),
                 address=detail.get("address"),
                 zip_code=detail.get("zip_code"),
-                neighborhood=detail.get("neighborhood"),
+                neighborhood=neighborhood,
                 bedrooms=detail.get("bedrooms"),
                 bathrooms=detail.get("bathrooms"),
                 sqft=detail.get("sqft"),
@@ -209,6 +284,9 @@ def scrape_craigslist_listings(known_external_ids: set[str] | None = None) -> li
         # Polite delay between requests
         time.sleep(SCRAPE_DELAY_SECONDS)
 
+    # Log which zip codes we saw but couldn't map to a neighborhood
+    log_unmapped_zip_summary()
+
     logger.info("scrape_complete", total_scraped=len(listings))
     return listings
 
@@ -227,14 +305,6 @@ def _extract_external_id(url: str) -> str | None:
     return match.group(1) if match else None
 
 
-def _extract_price_from_title(title: str) -> int | None:
-    """Extract price from RSS title like '$1,200 / 2br - ...'"""
-    match = re.search(r"\$([0-9,]+)", title)
-    if match:
-        return int(match.group(1).replace(",", ""))
-    return None
-
-
 def _parse_price(text: str) -> int | None:
     """Parse a price string like '$1,200' into an integer."""
     match = re.search(r"\$([0-9,]+)", text)
@@ -250,7 +320,9 @@ def _parse_housing_attrs(text: str) -> dict:
     """
     result: dict = {}
 
-    # Bedrooms: '2BR' or '2br'
+    # Bedrooms: '2BR' or '2br', or 'studio' (= 0 bedrooms)
+    if re.search(r"[Ss]tudio", text):
+        result["bedrooms"] = 0
     br_match = re.search(r"(\d+)\s*[Bb][Rr]", text)
     if br_match:
         result["bedrooms"] = int(br_match.group(1))

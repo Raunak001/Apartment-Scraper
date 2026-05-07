@@ -2,7 +2,20 @@
 
 Used to assign a neighborhood to a listing based on the zip code
 extracted from the listing's location data.
+
+Unmapped zip codes are tracked and logged so we can identify gaps
+in coverage and decide whether to add new neighborhoods.
 """
+
+from collections import Counter
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
+# Tracks zip codes seen during a scrape run that aren't in our mapping.
+# Reset between runs; logged at the end of each scrape cycle.
+_unmapped_zip_counts: Counter = Counter()
 
 # Mapping of Chicago zip codes to the neighborhood names used in preferences.yaml.
 # A zip code can span multiple neighborhoods — we pick the dominant one.
@@ -45,9 +58,39 @@ for _zip, _hood in ZIP_TO_NEIGHBORHOOD.items():
 
 
 def zip_to_neighborhood(zip_code: str | None) -> str | None:
-    """Return the neighborhood name for a Chicago zip code, or None if unmapped."""
+    """Return the neighborhood name for a Chicago zip code, or None if unmapped.
+
+    Unmapped zip codes are tracked in _unmapped_zip_counts so we can
+    identify coverage gaps after each scrape run.
+    """
     if not zip_code:
         return None
     # Handle 9-digit zip codes (e.g., 60614-1234)
     zip5 = zip_code.strip()[:5]
-    return ZIP_TO_NEIGHBORHOOD.get(zip5)
+    neighborhood = ZIP_TO_NEIGHBORHOOD.get(zip5)
+    if neighborhood is None and zip5.startswith("606"):
+        _unmapped_zip_counts[zip5] += 1
+        logger.debug("unmapped_zip", zip_code=zip5)
+    return neighborhood
+
+
+def get_unmapped_zips() -> dict[str, int]:
+    """Return a copy of unmapped zip counts seen since last reset."""
+    return dict(_unmapped_zip_counts)
+
+
+def reset_unmapped_zips() -> None:
+    """Clear the unmapped zip counter. Call at the start of each scrape run."""
+    _unmapped_zip_counts.clear()
+
+
+def log_unmapped_zip_summary() -> None:
+    """Log a summary of unmapped zip codes seen during this scrape run."""
+    if _unmapped_zip_counts:
+        logger.warning(
+            "unmapped_zips_summary",
+            count=sum(_unmapped_zip_counts.values()),
+            zips=dict(_unmapped_zip_counts.most_common(10)),
+        )
+    else:
+        logger.info("unmapped_zips_summary", count=0)

@@ -5,9 +5,9 @@ These tests verify the parsing helpers without making any HTTP requests.
 
 from app.scrapers.craigslist import (
     _extract_external_id,
-    _extract_price_from_title,
     _parse_housing_attrs,
     _parse_price,
+    _resolve_neighborhood,
 )
 
 
@@ -27,20 +27,6 @@ class TestExtractExternalId:
         assert _extract_external_id("") is None
 
 
-class TestExtractPriceFromTitle:
-    def test_standard_title(self):
-        assert _extract_price_from_title("$1,200 / 2br - Nice place") == 1200
-
-    def test_no_price(self):
-        assert _extract_price_from_title("Nice apartment in LP") is None
-
-    def test_large_price(self):
-        assert _extract_price_from_title("$2,500 / 1br - Luxury") == 2500
-
-    def test_price_no_comma(self):
-        assert _extract_price_from_title("$900 / studio") == 900
-
-
 class TestParsePrice:
     def test_standard(self):
         assert _parse_price("$1,500") == 1500
@@ -50,6 +36,9 @@ class TestParsePrice:
 
     def test_no_dollar_sign(self):
         assert _parse_price("no price here") is None
+
+    def test_large_price(self):
+        assert _parse_price("$2,500") == 2500
 
 
 class TestParseHousingAttrs:
@@ -72,3 +61,47 @@ class TestParseHousingAttrs:
     def test_sqft_without_unicode(self):
         result = _parse_housing_attrs("1000ft2")
         assert result == {"sqft": 1000}
+
+    def test_studio(self):
+        result = _parse_housing_attrs("Studio / 1Ba 450ft²")
+        assert result == {"bedrooms": 0, "bathrooms": 1.0, "sqft": 450}
+
+    def test_studio_no_other_attrs(self):
+        result = _parse_housing_attrs("studio")
+        assert result == {"bedrooms": 0}
+
+
+class TestResolveNeighborhood:
+    """Test the two-tier neighborhood resolution: zip code first, then location text."""
+
+    def test_zip_based_neighborhood_preferred(self):
+        detail = {"neighborhood": "lincoln_park", "zip_code": "60614"}
+        assert _resolve_neighborhood(detail, "West Loop") == "lincoln_park"
+
+    def test_falls_back_to_location_text(self):
+        detail = {}  # no zip, no neighborhood
+        assert _resolve_neighborhood(detail, "Wicker Park") == "wicker_park"
+
+    def test_location_text_case_insensitive(self):
+        detail = {}
+        assert _resolve_neighborhood(detail, "LOGAN SQUARE") == "logan_square"
+
+    def test_location_text_old_town(self):
+        detail = {}
+        assert _resolve_neighborhood(detail, "Old Town") == "old_town"
+
+    def test_location_text_west_loop(self):
+        detail = {}
+        assert _resolve_neighborhood(detail, "West Loop") == "west_loop"
+
+    def test_location_text_river_north(self):
+        detail = {}
+        assert _resolve_neighborhood(detail, "River North") == "river_north"
+
+    def test_unknown_location_returns_none(self):
+        detail = {}
+        assert _resolve_neighborhood(detail, "Naperville") is None
+
+    def test_no_location_returns_none(self):
+        detail = {}
+        assert _resolve_neighborhood(detail, None) is None
