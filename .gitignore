@@ -9,6 +9,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.pytest_cache/
 
 # IDE
 .vscode/
@@ -16,6 +17,7 @@ build/
 
 # Temp files
 .tmp/
+scripts/preview_raw_scrape.py
 
 # Google OAuth (future)
 credentials.json
