@@ -12,7 +12,7 @@ celery_app = Celery(
 
 celery_app.conf.update(
     # Discover tasks in these modules
-    include=["app.workers.tasks"],
+    include=["app.workers.tasks", "app.workers.enrichment_tasks"],
 
     # Serialization
     task_serializer="json",
@@ -27,11 +27,21 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
 
-    # Beat schedule — Craigslist scrape every 15 minutes
+    # Queue routing
+    task_routes={
+        "app.workers.tasks.*": {"queue": "scraping"},
+        "app.workers.enrichment_tasks.*": {"queue": "enrichment"},
+    },
+
+    # Beat schedule
     beat_schedule={
         "scrape-craigslist-every-15m": {
             "task": "app.workers.tasks.scrape_craigslist",
-            "schedule": 900.0,  # 15 minutes in seconds
+            "schedule": 900.0,
+        },
+        "backfill-unenriched-every-5m": {
+            "task": "app.workers.enrichment_tasks.backfill_unenriched",
+            "schedule": 300.0,
         },
     },
 )

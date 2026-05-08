@@ -6,10 +6,10 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-load_dotenv()
-
 # Paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+load_dotenv(PROJECT_ROOT / ".env", override=True)
 PREFERENCES_PATH = PROJECT_ROOT / "preferences.yaml"
 
 # Database
@@ -31,6 +31,12 @@ USER_AGENT: str = os.getenv(
 
 # Logging
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+
+# Anthropic (Enrichment)
+ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+
+# Discord (Notifications)
+DISCORD_WEBHOOK_URL: str = os.getenv("DISCORD_WEBHOOK_URL", "")
 
 
 def load_preferences() -> dict:

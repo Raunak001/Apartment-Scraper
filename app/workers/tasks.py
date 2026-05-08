@@ -9,6 +9,7 @@ from app.core.logging import get_logger, setup_logging
 from app.models.listing import Listing
 from app.scrapers.craigslist import RawListing, scrape_craigslist_listings
 from app.workers.celery_app import celery_app
+from app.workers.enrichment_tasks import enrich_listing
 
 # Initialize logging for worker processes
 setup_logging()
@@ -61,6 +62,7 @@ def scrape_craigslist(self) -> dict:
                 )
                 db.add(listing)
                 db.commit()
+                enrich_listing.delay(str(listing.id))
                 inserted += 1
             except Exception as e:
                 db.rollback()

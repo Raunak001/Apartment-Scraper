@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,5 +24,7 @@ class EnrichmentResult(Base):
     llm_notes: Mapped[str | None] = mapped_column(Text)
     tokens_used: Mapped[int | None] = mapped_column(Integer)
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    skipped: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    failed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     listing = relationship("Listing", backref="enrichment")
