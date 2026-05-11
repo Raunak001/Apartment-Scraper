@@ -7,7 +7,9 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.models.enrichment import EnrichmentResult
 from app.models.listing import Listing
+from app.models.price_distribution import PriceDistribution
 
 router = APIRouter()
 
@@ -59,12 +61,42 @@ def scraper_status(db: Session = Depends(get_db)):
         ).all()
     )
 
+    # Deal scoring stats
+    scored_count = db.execute(
+        select(func.count(Listing.id)).where(Listing.deal_score.isnot(None))
+    ).scalar() or 0
+
+    awaiting_score = db.execute(
+        select(func.count(Listing.id))
+        .select_from(Listing)
+        .join(EnrichmentResult, Listing.id == EnrichmentResult.listing_id)
+        .where(
+            EnrichmentResult.skipped.is_(False),
+            EnrichmentResult.failed.is_(False),
+            Listing.deal_score.is_(None),
+        )
+    ).scalar() or 0
+
+    total_segments = db.execute(
+        select(func.count(PriceDistribution.id))
+    ).scalar() or 0
+
+    gated_segments = db.execute(
+        select(func.count(PriceDistribution.id)).where(PriceDistribution.sample_count >= 20)
+    ).scalar() or 0
+
     return {
         "total_listings": sum(source_counts.values()),
         "by_source": source_counts,
         "by_status": status_counts,
         "by_neighborhood": neighborhood_counts,
         "latest_scrape": latest_scrape.isoformat() if latest_scrape else None,
+        "scoring": {
+            "scored": scored_count,
+            "awaiting_score": awaiting_score,
+            "total_segments": total_segments,
+            "segments_meeting_gate": gated_segments,
+        },
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -106,9 +138,44 @@ def list_listings(
                 "sqft": l.sqft,
                 "neighborhood": l.neighborhood,
                 "address": l.address,
+                "deal_score": float(l.deal_score) if l.deal_score is not None else None,
                 "listed_at": l.listed_at.isoformat() if l.listed_at else None,
                 "scraped_at": l.scraped_at.isoformat() if l.scraped_at else None,
             }
             for l in listings
+        ],
+    }
+
+
+@router.get("/price-distributions")
+def price_distributions(
+    db: Session = Depends(get_db),
+    neighborhood: str | None = Query(None, description="Filter by neighborhood"),
+    min_samples: int = Query(0, ge=0, description="Minimum sample count"),
+):
+    """Return price distribution stats per neighborhood × bedroom segment."""
+    query = select(PriceDistribution)
+
+    if neighborhood:
+        query = query.where(PriceDistribution.neighborhood == neighborhood)
+    if min_samples > 0:
+        query = query.where(PriceDistribution.sample_count >= min_samples)
+
+    query = query.order_by(PriceDistribution.neighborhood, PriceDistribution.bedroom_count)
+    distributions = db.execute(query).scalars().all()
+
+    return {
+        "count": len(distributions),
+        "distributions": [
+            {
+                "neighborhood": d.neighborhood,
+                "bedroom_count": d.bedroom_count,
+                "median_price": float(d.median_price) if d.median_price is not None else None,
+                "mad_price": float(d.mad_price) if d.mad_price is not None else None,
+                "sample_count": d.sample_count,
+                "gate_met": d.sample_count >= 20,
+                "last_updated": d.last_updated.isoformat() if d.last_updated else None,
+            }
+            for d in distributions
         ],
     }

@@ -14,6 +14,7 @@ from app.models.listing import Listing
 from app.models.preference import Preference
 from app.services.enrichment import EnrichmentService
 from app.workers.celery_app import celery_app
+from app.workers.pricing_tasks import score_new_listing
 
 setup_logging()
 logger = get_logger(__name__)
@@ -125,6 +126,8 @@ def enrich_listing(self, listing_id: str) -> dict:
         )
         db.add(enrichment)
         db.commit()
+
+        score_new_listing.delay(str(listing.id))
 
         logger.info(
             "enrich_listing_complete",

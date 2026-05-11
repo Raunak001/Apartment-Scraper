@@ -12,7 +12,7 @@ celery_app = Celery(
 
 celery_app.conf.update(
     # Discover tasks in these modules
-    include=["app.workers.tasks", "app.workers.enrichment_tasks"],
+    include=["app.workers.tasks", "app.workers.enrichment_tasks", "app.workers.pricing_tasks"],
 
     # Serialization
     task_serializer="json",
@@ -31,6 +31,7 @@ celery_app.conf.update(
     task_routes={
         "app.workers.tasks.*": {"queue": "scraping"},
         "app.workers.enrichment_tasks.*": {"queue": "enrichment"},
+        "app.workers.pricing_tasks.*": {"queue": "enrichment"},
     },
 
     # Beat schedule
@@ -42,6 +43,14 @@ celery_app.conf.update(
         "backfill-unenriched-every-5m": {
             "task": "app.workers.enrichment_tasks.backfill_unenriched",
             "schedule": 300.0,
+        },
+        "rebuild-distributions-every-30m": {
+            "task": "app.workers.pricing_tasks.rebuild_price_distributions",
+            "schedule": 1800.0,
+        },
+        "backfill-deal-scores-every-10m": {
+            "task": "app.workers.pricing_tasks.backfill_deal_scores",
+            "schedule": 600.0,
         },
     },
 )

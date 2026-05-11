@@ -42,6 +42,7 @@ class Listing(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deal_score: Mapped[float | None] = mapped_column(Numeric)
 
     def __repr__(self) -> str:
         return f"<Listing {self.source}:{self.external_id} ${self.price} {self.neighborhood}>"
