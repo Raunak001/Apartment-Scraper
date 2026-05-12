@@ -43,3 +43,13 @@ def load_preferences() -> dict:
     """Load preferences.yaml from project root. Returns the parsed dict."""
     with open(PREFERENCES_PATH, "r") as f:
         return yaml.safe_load(f)
+
+
+def get_notification_service():
+    from app.services.notifications import (
+        ConsoleNotificationService,
+        DiscordNotificationService,
+    )
+    if DISCORD_WEBHOOK_URL:
+        return DiscordNotificationService()
+    return ConsoleNotificationService()

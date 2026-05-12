@@ -66,6 +66,10 @@ def score_new_listing(self, listing_id: str) -> dict:
         listing.deal_score = score
         db.commit()
 
+        if score is not None:
+            from app.workers.alert_tasks import evaluate_single_listing
+            evaluate_single_listing.delay(str(listing.id))
+
         logger.info(
             "score_new_listing_complete",
             listing_id=listing_id,

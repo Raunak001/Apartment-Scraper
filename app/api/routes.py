@@ -107,6 +107,7 @@ def list_listings(
     neighborhood: str | None = Query(None, description="Filter by neighborhood"),
     max_price: int | None = Query(None, description="Maximum price"),
     min_bedrooms: int | None = Query(None, description="Minimum bedrooms"),
+    sort_by: str | None = Query(None, description="Sort by: composite_score, deal_score, price"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
@@ -120,7 +121,13 @@ def list_listings(
     if min_bedrooms is not None:
         query = query.where(Listing.bedrooms >= min_bedrooms)
 
-    query = query.order_by(Listing.scraped_at.desc()).offset(offset).limit(limit)
+    sort_columns = {
+        "composite_score": Listing.composite_score.desc().nullslast(),
+        "deal_score": Listing.deal_score.desc().nullslast(),
+        "price": Listing.price.asc().nullslast(),
+    }
+    order = sort_columns.get(sort_by, Listing.scraped_at.desc())
+    query = query.order_by(order).offset(offset).limit(limit)
     listings = db.execute(query).scalars().all()
 
     return {
@@ -139,6 +146,7 @@ def list_listings(
                 "neighborhood": l.neighborhood,
                 "address": l.address,
                 "deal_score": float(l.deal_score) if l.deal_score is not None else None,
+                "composite_score": float(l.composite_score) if l.composite_score is not None else None,
                 "listed_at": l.listed_at.isoformat() if l.listed_at else None,
                 "scraped_at": l.scraped_at.isoformat() if l.scraped_at else None,
             }

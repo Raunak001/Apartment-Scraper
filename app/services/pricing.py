@@ -16,7 +16,7 @@ from app.models.price_distribution import PriceDistribution
 logger = get_logger(__name__)
 
 ROLLING_WINDOW_DAYS = 60
-MIN_SAMPLE_COUNT = 20
+MIN_SAMPLE_COUNT = 2
 MAD_FLOOR = 1.0
 MAD_NORMALIZATION = 0.6745
 
