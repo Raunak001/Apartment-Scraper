@@ -28,5 +28,8 @@ class AlertHistory(Base):
     )
     delivery_status: Mapped[str] = mapped_column(Text, default="sent")
     channel: Mapped[str] = mapped_column(Text, default="discord")
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
 
     listing = relationship("Listing", backref="alerts")

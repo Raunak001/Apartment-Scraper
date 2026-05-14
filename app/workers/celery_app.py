@@ -19,6 +19,8 @@ celery_app.conf.update(
         "app.workers.pricing_tasks",
         "app.workers.alert_tasks",
         "app.workers.dedup_tasks",
+        "app.workers.staleness_tasks",
+        "app.workers.backup_tasks",
     ],
 
     # Serialization
@@ -41,6 +43,8 @@ celery_app.conf.update(
         "app.workers.pricing_tasks.*": {"queue": "enrichment"},
         "app.workers.alert_tasks.*": {"queue": "enrichment"},
         "app.workers.dedup_tasks.*": {"queue": "enrichment"},
+        "app.workers.staleness_tasks.*": {"queue": "enrichment"},
+        "app.workers.backup_tasks.*": {"queue": "enrichment"},
     },
 
     # Beat schedule
@@ -94,6 +98,15 @@ celery_app.conf.update(
         "resolve-dedup-pairs-every-30m": {
             "task": "app.workers.dedup_tasks.resolve_dedup_pairs",
             "schedule": 1800.0,
+        },
+        # Phase 6: Staleness detection + backups
+        "mark-stale-listings-daily-3am": {
+            "task": "app.workers.staleness_tasks.mark_stale_listings",
+            "schedule": crontab(hour=3, minute=0),
+        },
+        "nightly-db-backup-2am": {
+            "task": "app.workers.backup_tasks.backup_database",
+            "schedule": crontab(hour=2, minute=0),
         },
     },
 )

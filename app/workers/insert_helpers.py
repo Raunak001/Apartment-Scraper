@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -66,6 +67,7 @@ def batch_insert_listings(raw_listings: list[RawListing], db: Session) -> dict:
     inserted = 0
     skipped_duplicate = 0
     skipped_dedup = 0
+    reactivated = 0
     errors = 0
     listing_ids: list[str] = []
 
@@ -132,6 +134,18 @@ def batch_insert_listings(raw_listings: list[RawListing], db: Session) -> dict:
             savepoint.rollback()
             if "uq_source_external_id" in str(e):
                 skipped_duplicate += 1
+                existing = db.execute(
+                    select(Listing).where(
+                        Listing.source == raw.source,
+                        Listing.external_id == raw.external_id,
+                    )
+                ).scalar_one_or_none()
+                if existing:
+                    existing.last_checked_at = datetime.now(timezone.utc)
+                    if existing.status == "stale":
+                        existing.status = "active"
+                        reactivated += 1
+                        logger.info("listing_reactivated", external_id=raw.external_id)
                 logger.debug("duplicate_skipped", external_id=raw.external_id)
             else:
                 errors += 1
@@ -146,6 +160,7 @@ def batch_insert_listings(raw_listings: list[RawListing], db: Session) -> dict:
         "inserted": inserted,
         "skipped_duplicate": skipped_duplicate,
         "skipped_dedup": skipped_dedup,
+        "reactivated": reactivated,
         "errors": errors,
     }
     logger.info("batch_insert_complete", **summary)
