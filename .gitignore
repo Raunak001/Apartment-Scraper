@@ -26,3 +26,9 @@ token.json
 # Claude
 CLAUDE.md
 .claude/
+
+# Celery
+celerybeat-schedule*
+
+# Scripts
+scripts/

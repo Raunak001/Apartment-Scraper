@@ -38,6 +38,11 @@ ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 # Discord (Notifications)
 DISCORD_WEBHOOK_URL: str = os.getenv("DISCORD_WEBHOOK_URL", "")
 
+# Gmail (Email Ingestion)
+GMAIL_CREDENTIALS_JSON: str = os.getenv("GMAIL_CREDENTIALS_JSON", str(PROJECT_ROOT / "credentials.json"))
+GMAIL_TOKEN_JSON: str = os.getenv("GMAIL_TOKEN_JSON", str(PROJECT_ROOT / "token.json"))
+GMAIL_PROCESSED_LABEL: str = os.getenv("GMAIL_PROCESSED_LABEL", "apartment-scraper/processed")
+
 
 def load_preferences() -> dict:
     """Load preferences.yaml from project root. Returns the parsed dict."""

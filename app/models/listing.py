@@ -44,6 +44,7 @@ class Listing(Base):
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     deal_score: Mapped[float | None] = mapped_column(Numeric)
     composite_score: Mapped[float | None] = mapped_column(Numeric)
+    dedup_hash: Mapped[str | None] = mapped_column(Text, index=True)
 
     def __repr__(self) -> str:
         return f"<Listing {self.source}:{self.external_id} ${self.price} {self.neighborhood}>"

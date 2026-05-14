@@ -13,7 +13,13 @@ celery_app = Celery(
 
 celery_app.conf.update(
     # Discover tasks in these modules
-    include=["app.workers.tasks", "app.workers.enrichment_tasks", "app.workers.pricing_tasks", "app.workers.alert_tasks"],
+    include=[
+        "app.workers.tasks",
+        "app.workers.enrichment_tasks",
+        "app.workers.pricing_tasks",
+        "app.workers.alert_tasks",
+        "app.workers.dedup_tasks",
+    ],
 
     # Serialization
     task_serializer="json",
@@ -34,6 +40,7 @@ celery_app.conf.update(
         "app.workers.enrichment_tasks.*": {"queue": "enrichment"},
         "app.workers.pricing_tasks.*": {"queue": "enrichment"},
         "app.workers.alert_tasks.*": {"queue": "enrichment"},
+        "app.workers.dedup_tasks.*": {"queue": "enrichment"},
     },
 
     # Beat schedule
@@ -65,6 +72,28 @@ celery_app.conf.update(
         "daily-heartbeat-9am": {
             "task": "app.workers.alert_tasks.daily_heartbeat",
             "schedule": crontab(hour=9, minute=0),
+        },
+        # Phase 5: Multi-source scraping
+        "scrape-domu-every-20m": {
+            "task": "app.workers.tasks.scrape_domu",
+            "schedule": 1200.0,
+        },
+        "poll-zillow-email-every-5m": {
+            "task": "app.workers.tasks.poll_zillow_email",
+            "schedule": 300.0,
+        },
+        "poll-apartments-email-every-5m": {
+            "task": "app.workers.tasks.poll_apartments_email",
+            "schedule": 300.0,
+        },
+        # Phase 5: Cross-source dedup
+        "cross-source-dedup-every-30m": {
+            "task": "app.workers.dedup_tasks.run_dedup_sweep",
+            "schedule": 1800.0,
+        },
+        "resolve-dedup-pairs-every-30m": {
+            "task": "app.workers.dedup_tasks.resolve_dedup_pairs",
+            "schedule": 1800.0,
         },
     },
 )

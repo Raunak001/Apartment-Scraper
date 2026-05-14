@@ -11,7 +11,6 @@ Strategy:
 
 import re
 import time
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import httpx
@@ -24,6 +23,7 @@ from app.core.neighborhoods import (
     log_unmapped_zip_summary,
     reset_unmapped_zips,
 )
+from app.scrapers.base import RawListing
 
 logger = get_logger(__name__)
 
@@ -75,28 +75,6 @@ LOCATION_TO_NEIGHBORHOOD: dict[str, str] = {
     "fulton market": "fulton_market",
     "river north": "river_north",
 }
-
-
-@dataclass
-class RawListing:
-    """Intermediate representation of a scraped listing before DB insertion."""
-
-    external_id: str
-    source: str = "craigslist"
-    url: str = ""
-    title: str | None = None
-    address: str | None = None
-    unit_number: str | None = None
-    neighborhood: str | None = None
-    city: str = "chicago"
-    zip_code: str | None = None
-    price: int | None = None
-    bedrooms: int | None = None
-    bathrooms: float | None = None
-    sqft: int | None = None
-    description: str | None = None
-    listed_at: datetime | None = None
-    extras: dict = field(default_factory=dict)
 
 
 def fetch_search_listings() -> list[dict]:
@@ -256,6 +234,7 @@ def scrape_craigslist_listings(known_external_ids: set[str] | None = None) -> li
 
             listing = RawListing(
                 external_id=entry["external_id"],
+                source="craigslist",
                 url=entry["url"],
                 title=detail.get("title") or entry.get("title"),
                 price=detail.get("price") or entry.get("price"),

@@ -27,6 +27,14 @@ pyyaml==6.0.2
 # Logging
 structlog==24.4.0
 
+# Email Ingestion (Phase 5)
+google-api-python-client>=2.100.0
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=1.2.0
+
+# Cross-source Dedup (Phase 5)
+rapidfuzz>=3.6.0
+
 # Testing
 pytest==8.3.4
 pytest-asyncio==0.24.0
