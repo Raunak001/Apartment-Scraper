@@ -73,22 +73,22 @@ celery_app.conf.update(
             "task": "app.workers.alert_tasks.dispatch_alerts",
             "schedule": 600.0,
         },
-        "daily-heartbeat-9am": {
+        "daily-heartbeat-11am": {
             "task": "app.workers.alert_tasks.daily_heartbeat",
-            "schedule": crontab(hour=9, minute=0),
+            "schedule": crontab(hour=11, minute=0),
         },
         # Phase 5: Multi-source scraping
         "scrape-domu-every-20m": {
             "task": "app.workers.tasks.scrape_domu",
             "schedule": 1200.0,
         },
-        "poll-zillow-email-every-5m": {
+        "poll-zillow-email-every-hour": {
             "task": "app.workers.tasks.poll_zillow_email",
-            "schedule": 300.0,
+            "schedule": 3600.0,
         },
-        "poll-apartments-email-every-5m": {
+        "poll-apartments-email-every-hour": {
             "task": "app.workers.tasks.poll_apartments_email",
-            "schedule": 300.0,
+            "schedule": 3600.0,
         },
         # Phase 5: Cross-source dedup
         "cross-source-dedup-every-30m": {

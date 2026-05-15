@@ -86,6 +86,7 @@ class AlertDispatcher:
             preference_score=float(enrichment.preference_score) if enrichment.preference_score is not None else 0.0,
             reasoning=reasoning,
             amenities_summary=amenities_summary,
+            source=listing.source or "",
         )
 
     def fire_alert(
@@ -148,7 +149,7 @@ class AlertDispatcher:
         alert_threshold = preferences.get("pricing", {}).get("alert_threshold", 0.15)
         min_composite = preferences.get("scoring", {}).get("min_composite_score", 0.55)
         cooldown_hours = preferences.get("alerts", {}).get("cooldown_hours", 24)
-        max_per_day = preferences.get("alerts", {}).get("max_per_day", 10)
+        max_per_day = preferences.get("alerts", {}).get("max_per_day", 100)
 
         fired_count = self.alerts_fired_in_window(db)
         if fired_count >= max_per_day:
@@ -210,7 +211,7 @@ class AlertDispatcher:
         alert_threshold = preferences.get("pricing", {}).get("alert_threshold", 0.15)
         min_composite = preferences.get("scoring", {}).get("min_composite_score", 0.55)
         cooldown_hours = preferences.get("alerts", {}).get("cooldown_hours", 24)
-        max_per_day = preferences.get("alerts", {}).get("max_per_day", 10)
+        max_per_day = preferences.get("alerts", {}).get("max_per_day", 100)
 
         listing = db.query(Listing).filter(Listing.id == listing_id).first()
         if not listing or listing.status != "active":
@@ -280,7 +281,7 @@ class AlertDispatcher:
 
         segments_meeting_gate = db.execute(
             select(func.count(PriceDistribution.id)).where(
-                PriceDistribution.sample_count >= 20
+                PriceDistribution.sample_count >= 5
             )
         ).scalar() or 0
 

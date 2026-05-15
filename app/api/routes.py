@@ -1,4 +1,4 @@
-"""FastAPI routes — health checks and listing status endpoints."""
+"""FastAPI routes — health checks, listing status, and manual scrape triggers."""
 
 from datetime import datetime, timezone
 
@@ -10,6 +10,14 @@ from app.core.database import get_db
 from app.models.enrichment import EnrichmentResult
 from app.models.listing import Listing
 from app.models.price_distribution import PriceDistribution
+from app.workers.tasks import (
+    poll_apartments_email,
+    poll_zillow_email,
+    scrape_craigslist,
+    scrape_domu,
+)
+
+MIN_SEGMENT_SAMPLES = 5  # Keep in sync with pricing.py MIN_SAMPLE_COUNT
 
 router = APIRouter()
 
@@ -82,7 +90,7 @@ def scraper_status(db: Session = Depends(get_db)):
     ).scalar() or 0
 
     gated_segments = db.execute(
-        select(func.count(PriceDistribution.id)).where(PriceDistribution.sample_count >= 20)
+        select(func.count(PriceDistribution.id)).where(PriceDistribution.sample_count >= MIN_SEGMENT_SAMPLES)
     ).scalar() or 0
 
     return {
@@ -181,9 +189,59 @@ def price_distributions(
                 "median_price": float(d.median_price) if d.median_price is not None else None,
                 "mad_price": float(d.mad_price) if d.mad_price is not None else None,
                 "sample_count": d.sample_count,
-                "gate_met": d.sample_count >= 20,
+                "gate_met": d.sample_count >= MIN_SEGMENT_SAMPLES,
                 "last_updated": d.last_updated.isoformat() if d.last_updated else None,
             }
             for d in distributions
         ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Manual scrape triggers
+# ---------------------------------------------------------------------------
+
+@router.post("/scrape/craigslist")
+def trigger_scrape_craigslist():
+    """Manually queue a Craigslist scrape task."""
+    result = scrape_craigslist.delay()
+    return {"status": "queued", "task_id": result.id, "source": "craigslist"}
+
+
+@router.post("/scrape/domu")
+def trigger_scrape_domu():
+    """Manually queue a Domu scrape task."""
+    result = scrape_domu.delay()
+    return {"status": "queued", "task_id": result.id, "source": "domu"}
+
+
+@router.post("/scrape/email")
+def trigger_scrape_email():
+    """Manually queue email polling for both Zillow and Apartments.com."""
+    zillow = poll_zillow_email.delay()
+    apartments = poll_apartments_email.delay()
+    return {
+        "status": "queued",
+        "tasks": {
+            "zillow": zillow.id,
+            "apartments_com": apartments.id,
+        },
+    }
+
+
+@router.post("/scrape/all")
+def trigger_scrape_all():
+    """Manually queue all four scrape sources at once."""
+    cl = scrape_craigslist.delay()
+    domu = scrape_domu.delay()
+    zillow = poll_zillow_email.delay()
+    apartments = poll_apartments_email.delay()
+    return {
+        "status": "queued",
+        "tasks": {
+            "craigslist": cl.id,
+            "domu": domu.id,
+            "zillow": zillow.id,
+            "apartments_com": apartments.id,
+        },
     }

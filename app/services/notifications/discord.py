@@ -38,6 +38,7 @@ class DiscordNotificationService(NotificationService):
                 {"name": "Price", "value": f"${payload.price}/mo", "inline": True},
                 {"name": "Neighborhood", "value": payload.neighborhood, "inline": True},
                 {"name": "Bedrooms", "value": str(payload.bedrooms), "inline": True},
+                {"name": "Source", "value": payload.source.replace("_", " ").title() if payload.source else "Unknown", "inline": True},
                 {"name": "Composite Score", "value": f"{payload.composite_score:.2f}", "inline": True},
                 {"name": "Deal Score", "value": f"{payload.deal_score:.2f}", "inline": True},
                 {"name": "Preference Score", "value": f"{payload.preference_score:.2f}", "inline": True},

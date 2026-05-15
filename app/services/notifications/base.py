@@ -16,6 +16,7 @@ class AlertPayload:
     preference_score: float
     reasoning: str
     amenities_summary: str
+    source: str = ""
 
 
 class NotificationService(ABC):

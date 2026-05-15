@@ -39,7 +39,7 @@ scoring:
 
 alerts:
   cooldown_hours: 24
-  max_per_day: 10
+  max_per_day: 100
 
 staleness:
   ttl_days: 14
