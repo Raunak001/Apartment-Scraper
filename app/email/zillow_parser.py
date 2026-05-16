@@ -15,7 +15,10 @@ from app.scrapers.base import RawListing
 
 logger = get_logger(__name__)
 
-ZILLOW_SENDER = "noreply@zillow.com"
+ZILLOW_SENDER = [
+    "instant-updates@mail.zillow.com",
+    "rental-instant-updates@mail.zillow.com",
+]
 
 
 def _extract_zpid(url: str) -> str | None:

@@ -15,7 +15,7 @@ from app.scrapers.base import RawListing
 
 logger = get_logger(__name__)
 
-APARTMENTS_SENDER = "noreply@apartments.com"
+APARTMENTS_SENDER = "hello@email.apartments.com"
 
 
 def _extract_listing_id(url: str) -> str | None:
