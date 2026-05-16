@@ -122,17 +122,22 @@ class GmailClient:
             self._processed_label_id = _ensure_label(self.service, GMAIL_PROCESSED_LABEL)
         return self._processed_label_id
 
-    def fetch_unprocessed(self, sender_filter: str, max_results: int = 20) -> list[EmailMessage]:
+    def fetch_unprocessed(self, sender_filter: str | list[str], max_results: int = 20) -> list[EmailMessage]:
         """Fetch unprocessed emails from a specific sender.
 
         Args:
-            sender_filter: Email address to filter by (e.g., "noreply@zillow.com")
+            sender_filter: Email address or list of addresses to filter by
             max_results: Maximum number of messages to fetch
 
         Returns:
             List of EmailMessage objects with parsed HTML bodies.
         """
-        query = f"from:{sender_filter} is:unread -label:{GMAIL_PROCESSED_LABEL}"
+        if isinstance(sender_filter, list):
+            from_clause = " OR ".join(f"from:{s}" for s in sender_filter)
+            from_clause = f"{{{from_clause}}}"
+        else:
+            from_clause = f"from:{sender_filter}"
+        query = f"{from_clause} is:unread -label:{GMAIL_PROCESSED_LABEL}"
         logger.info("gmail_fetching", query=query)
 
         try:
