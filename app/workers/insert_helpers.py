@@ -76,6 +76,21 @@ def batch_insert_listings(raw_listings: list[RawListing], db: Session) -> dict:
         try:
             dedup_hash = compute_dedup_hash(raw.address, raw.unit_number, raw.bedrooms)
 
+            # URL-based dedup: same URL from any source is the same listing
+            url_existing = db.execute(
+                select(Listing).where(Listing.url == raw.url)
+            ).scalar_one_or_none()
+            if url_existing:
+                skipped_dedup += 1
+                savepoint.rollback()
+                logger.info(
+                    "dedup_url_skipped",
+                    url=raw.url,
+                    existing_id=str(url_existing.id),
+                    existing_source=url_existing.source,
+                )
+                continue
+
             if raw.address:
                 existing = db.execute(
                     select(Listing).where(

@@ -46,16 +46,35 @@ class AlertDispatcher:
         return listing.price <= threshold_price
 
     def is_on_cooldown(
-        self, db: Session, listing_id: uuid.UUID, cooldown_hours: int
+        self, db: Session, listing_id: uuid.UUID, cooldown_hours: int, url: str | None = None
     ) -> bool:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=cooldown_hours)
+
+        # Check by listing_id first (fast path)
         count = db.execute(
             select(func.count(AlertHistory.id)).where(
                 AlertHistory.listing_id == listing_id,
                 AlertHistory.fired_at >= cutoff,
             )
         ).scalar() or 0
-        return count > 0
+        if count > 0:
+            return True
+
+        # Also block if any listing with the same URL fired recently — catches
+        # reposts of the same apartment that got separate DB rows
+        if url:
+            count = db.execute(
+                select(func.count(AlertHistory.id))
+                .join(Listing, AlertHistory.listing_id == Listing.id)
+                .where(
+                    Listing.url == url,
+                    AlertHistory.fired_at >= cutoff,
+                )
+            ).scalar() or 0
+            if count > 0:
+                return True
+
+        return False
 
     def alerts_fired_in_window(self, db: Session) -> int:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
@@ -181,7 +200,7 @@ class AlertDispatcher:
                 skipped_threshold += 1
                 continue
 
-            if self.is_on_cooldown(db, listing.id, cooldown_hours):
+            if self.is_on_cooldown(db, listing.id, cooldown_hours, url=listing.url):
                 skipped_cooldown += 1
                 continue
 
@@ -245,7 +264,7 @@ class AlertDispatcher:
         if not self.passes_alert_threshold(db, listing, alert_threshold):
             return {"status": "skipped", "reason": "below_alert_threshold", "composite_score": composite}
 
-        if self.is_on_cooldown(db, listing.id, cooldown_hours):
+        if self.is_on_cooldown(db, listing.id, cooldown_hours, url=listing.url):
             return {"status": "skipped", "reason": "on_cooldown", "composite_score": composite}
 
         if self.alerts_fired_in_window(db) >= max_per_day:

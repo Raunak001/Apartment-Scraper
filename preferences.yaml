@@ -11,7 +11,7 @@ search:
     - river_north
 
 pricing:
-  max_price: 2200
+  max_price: 2300
   alert_threshold: 0.15
 
 unit:

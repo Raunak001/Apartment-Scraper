@@ -53,10 +53,6 @@ celery_app.conf.update(
             "task": "app.workers.tasks.scrape_craigslist",
             "schedule": 900.0,
         },
-        "backfill-unenriched-every-5m": {
-            "task": "app.workers.enrichment_tasks.backfill_unenriched",
-            "schedule": 300.0,
-        },
         "rebuild-distributions-every-30m": {
             "task": "app.workers.pricing_tasks.rebuild_price_distributions",
             "schedule": 1800.0,

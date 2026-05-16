@@ -3,7 +3,6 @@
 from datetime import datetime, timezone
 
 import anthropic
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import ANTHROPIC_API_KEY, load_preferences
@@ -175,33 +174,3 @@ def enrich_listing(self, listing_id: str) -> dict:
         db.close()
 
 
-@celery_app.task(
-    name="app.workers.enrichment_tasks.backfill_unenriched",
-    bind=True,
-    queue="enrichment",
-)
-def backfill_unenriched(self) -> dict:
-    """Poll for listings missing enrichment results and dispatch enrichment tasks."""
-    logger.info("backfill_unenriched_started")
-
-    db = SessionLocal()
-    try:
-        unenriched = (
-            db.query(Listing.id)
-            .outerjoin(EnrichmentResult, Listing.id == EnrichmentResult.listing_id)
-            .filter(EnrichmentResult.id.is_(None))
-            .filter(Listing.status != "enrichment_failed")
-            .limit(50)
-            .all()
-        )
-
-        dispatched = 0
-        for (listing_id,) in unenriched:
-            enrich_listing.delay(str(listing_id))
-            dispatched += 1
-
-        logger.info("backfill_unenriched_complete", dispatched=dispatched)
-        return {"dispatched": dispatched}
-
-    finally:
-        db.close()
